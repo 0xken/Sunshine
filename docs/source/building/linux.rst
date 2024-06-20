@@ -15,23 +15,18 @@ Install Requirements
       sudo apt update && sudo apt install \
           build-essential \
           cmake \
-          libavdevice-dev \
           libayatana-appindicator3-dev \
-          libboost-filesystem-dev \
-          libboost-locale-dev \
-          libboost-log-dev \
-          libboost-program-options-dev \
           libcap-dev \  # KMS
           libcurl4-openssl-dev \
           libdrm-dev \  # KMS
           libevdev-dev \
-          libmfx-dev \  # x86_64 only
+          libminiupnpc-dev \
           libnotify-dev \
           libnuma-dev \
           libopus-dev \
           libpulse-dev \
           libssl-dev \
-          libva-dev \
+          libva-dev \  # VA-API
           libvdpau-dev \
           libwayland-dev \  # Wayland
           libx11-dev \  # X11
@@ -46,7 +41,7 @@ Install Requirements
           nvidia-cuda-dev \  # Cuda, NvFBC
           nvidia-cuda-toolkit  # Cuda, NvFBC
 
-Fedora 37, 38
+Fedora 39, 40
 ^^^^^^^^^^^^^
 
 Install Requirements
@@ -55,18 +50,16 @@ Install Requirements
       sudo dnf update && \
       sudo dnf group install "Development Tools" && \
       sudo dnf install \
-          boost-devel \
           cmake \
           gcc \
           gcc-c++ \
-          intel-mediasdk-devel \ # x86_64 only
           libappindicator-gtk3-devel \
           libcap-devel \
           libcurl-devel \
           libdrm-devel \
           libevdev-devel \
           libnotify-devel \
-          libva-devel \
+          libva-devel \  # VA-API
           libvdpau-devel \
           libX11-devel \  # X11
           libxcb-devel \  # X11
@@ -77,6 +70,7 @@ Install Requirements
           libXrandr-devel \  # X11
           libXtst-devel \  # X11
           mesa-libGL-devel \
+          miniupnpc-devel \
           npm \
           numactl-devel \
           openssl-devel \
@@ -86,59 +80,8 @@ Install Requirements
           wget \  # necessary for cuda install with `run` file
           which   # necessary for cuda install with `run` file
 
-Ubuntu 20.04
-^^^^^^^^^^^^
-End of Life: April 2030
-
-Install Requirements
-   .. code-block:: bash
-
-      sudo apt update && sudo apt install \
-          build-essential \
-          cmake \
-          g++-10 \
-          libayatana-appindicator3-dev \
-          libavdevice-dev \
-          libboost-filesystem-dev \
-          libboost-locale-dev \
-          libboost-log-dev \
-          libboost-program-options-dev \
-          libcap-dev \  # KMS
-          libdrm-dev \  # KMS
-          libevdev-dev \
-          libmfx-dev \  # x86_64 only
-          libnotify-dev \
-          libnuma-dev \
-          libopus-dev \
-          libpulse-dev \
-          libssl-dev \
-          libva-dev \
-          libvdpau-dev \
-          libwayland-dev \  # Wayland
-          libx11-dev \  # X11
-          libxcb-shm0-dev \  # X11
-          libxcb-xfixes0-dev \  # X11
-          libxcb1-dev \  # X11
-          libxfixes-dev \  # X11
-          libxrandr-dev \  # X11
-          libxtst-dev \  # X11
-          nodejs \
-          npm \
-          wget  # necessary for cuda install with `run` file
-
-Update gcc alias
-   .. code-block:: bash
-
-      update-alternatives --install \
-        /usr/bin/gcc gcc /usr/bin/gcc-10 100 \
-        --slave /usr/bin/g++ g++ /usr/bin/g++-10 \
-        --slave /usr/bin/gcov gcov /usr/bin/gcov-10 \
-        --slave /usr/bin/gcc-ar gcc-ar /usr/bin/gcc-ar-10 \
-        --slave /usr/bin/gcc-ranlib gcc-ranlib /usr/bin/gcc-ranlib-10
-
 Ubuntu 22.04
 ^^^^^^^^^^^^
-End of Life: April 2027
 
 Install Requirements
    .. code-block:: bash
@@ -147,20 +90,17 @@ Install Requirements
           build-essential \
           cmake \
           libappindicator3-dev \
-          libavdevice-dev \
-          libboost-filesystem-dev \
-          libboost-locale-dev \
-          libboost-log-dev \
-          libboost-program-options-dev \
           libcap-dev \  # KMS
+          libcurl4-openssl-dev \
           libdrm-dev \  # KMS
           libevdev-dev \
-          libmfx-dev \  # x86_64 only
+          libminiupnpc-dev \
           libnotify-dev \
           libnuma-dev \
           libopus-dev \
           libpulse-dev \
           libssl-dev \
+          libva-dev \  # VA-API
           libwayland-dev \  # Wayland
           libx11-dev \  # X11
           libxcb-shm0-dev \  # X11
@@ -174,11 +114,58 @@ Install Requirements
           nvidia-cuda-dev \  # CUDA, NvFBC
           nvidia-cuda-toolkit  # CUDA, NvFBC
 
+Ubuntu 24.04
+^^^^^^^^^^^^
+
+Install Requirements
+   .. code-block:: bash
+
+      sudo apt update && sudo apt install \
+          build-essential \
+          cmake \
+          gcc-11 \
+          g++-11 \
+          libappindicator3-dev \
+          libcap-dev \  # KMS
+          libcurl4-openssl-dev \
+          libdrm-dev \  # KMS
+          libevdev-dev \
+          libminiupnpc-dev \
+          libnotify-dev \
+          libnuma-dev \
+          libopus-dev \
+          libpulse-dev \
+          libssl-dev \
+          libva-dev \  # VA-API
+          libwayland-dev \  # Wayland
+          libx11-dev \  # X11
+          libxcb-shm0-dev \  # X11
+          libxcb-xfixes0-dev \  # X11
+          libxcb1-dev \  # X11
+          libxfixes-dev \  # X11
+          libxrandr-dev \  # X11
+          libxtst-dev \  # X11
+          nodejs \
+          npm \
+          nvidia-cuda-dev \  # CUDA, NvFBC
+          nvidia-cuda-toolkit  # CUDA, NvFBC
+
+Update gcc alias
+   .. code-block:: bash
+
+      update-alternatives --install \
+        /usr/bin/gcc gcc /usr/bin/gcc-11 100 \
+        --slave /usr/bin/g++ g++ /usr/bin/g++-11 \
+        --slave /usr/bin/gcov gcov /usr/bin/gcov-11 \
+        --slave /usr/bin/gcc-ar gcc-ar /usr/bin/gcc-ar-11 \
+        --slave /usr/bin/gcc-ranlib gcc-ranlib /usr/bin/gcc-ranlib-11
+
 CUDA
 ----
 If the version of CUDA available from your distro is not adequate, manually install CUDA.
 
-.. Tip:: The version of CUDA you use will determine compatibility with various GPU generations.
+.. tip:: The version of CUDA you use will determine compatibility with various GPU generations.
+   At the time of writing, the recommended version to use is CUDA ~11.8.
    See `CUDA compatibility <https://docs.nvidia.com/deploy/cuda-compatibility/index.html>`__ for more info.
 
    Select the appropriate run file based on your desired CUDA version and architecture according to
@@ -192,16 +179,9 @@ If the version of CUDA available from your distro is not adequate, manually inst
    ./cuda.run --silent --toolkit --toolkitpath=/usr --no-opengl-libs --no-man-page --no-drm
    rm ./cuda.run
 
-npm dependencies
-----------------
-Install npm dependencies.
-   .. code-block:: bash
-
-      npm install
-
 Build
 -----
-.. Attention:: Ensure you are in the build directory created during the clone step earlier before continuing.
+.. attention:: Ensure you are in the build directory created during the clone step earlier before continuing.
 
 .. code-block:: bash
 

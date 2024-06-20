@@ -17,13 +17,19 @@ extern "C" {
 #include <unordered_map>
 
 #include "config.h"
+#include "globals.h"
 #include "input.h"
-#include "main.h"
+#include "logging.h"
 #include "platform/common.h"
 #include "thread_pool.h"
 #include "utility.h"
 
 #include <boost/endian/buffers.hpp>
+
+// Win32 WHEEL_DELTA constant
+#ifndef WHEEL_DELTA
+  #define WHEEL_DELTA 120
+#endif
 
 using namespace std::literals;
 namespace input {
@@ -112,7 +118,7 @@ namespace input {
 
   void
   free_gamepad(platf::input_t &platf_input, int id) {
-    platf::gamepad(platf_input, id, platf::gamepad_state_t {});
+    platf::gamepad_update(platf_input, id, platf::gamepad_state_t {});
     platf::free_gamepad(platf_input, id);
 
     free_id(gamepadMask, id);
@@ -160,7 +166,9 @@ namespace input {
         touch_port_event { std::move(touch_port_event) },
         feedback_queue { std::move(feedback_queue) },
         mouse_left_button_timeout {},
-        touch_port { { 0, 0, 0, 0 }, 0, 0, 1.0f } {}
+        touch_port { { 0, 0, 0, 0 }, 0, 0, 1.0f },
+        accumulated_vscroll_delta {},
+        accumulated_hscroll_delta {} {}
 
     // Keep track of alt+ctrl+shift key combo
     int shortcutFlags;
@@ -177,6 +185,9 @@ namespace input {
     thread_pool_util::ThreadPool::task_id_t mouse_left_button_timeout;
 
     input::touch_port_t touch_port;
+
+    int32_t accumulated_vscroll_delta;
+    int32_t accumulated_hscroll_delta;
   };
 
   /**
@@ -458,14 +469,18 @@ namespace input {
    * @param input The input context.
    * @param val The cartesian coordinate pair to convert.
    * @param size The size of the client's surface containing the value.
-   * @return The host-relative coordinate pair.
+   * @return The host-relative coordinate pair if a touchport is available.
    */
-  std::pair<float, float>
+  std::optional<std::pair<float, float>>
   client_to_touchport(std::shared_ptr<input_t> &input, const std::pair<float, float> &val, const std::pair<float, float> &size) {
     auto &touch_port_event = input->touch_port_event;
     auto &touch_port = input->touch_port;
     if (touch_port_event->peek()) {
       touch_port = *touch_port_event->pop();
+    }
+    if (!touch_port) {
+      BOOST_LOG(verbose) << "Ignoring early absolute input without a touch port"sv;
+      return std::nullopt;
     }
 
     auto scalarX = touch_port.width / size.first;
@@ -480,7 +495,7 @@ namespace input {
     x = std::clamp(x, offsetX, (size.first * scalarX) - offsetX);
     y = std::clamp(y, offsetY, (size.second * scalarY) - offsetY);
 
-    return { (x - offsetX) * touch_port.scalar_inv, (y - offsetY) * touch_port.scalar_inv };
+    return std::pair { (x - offsetX) * touch_port.scalar_inv, (y - offsetY) * touch_port.scalar_inv };
   }
 
   /**
@@ -550,6 +565,9 @@ namespace input {
     auto height = (float) util::endian::big(packet->height);
 
     auto tpcoords = client_to_touchport(input, { x, y }, { width, height });
+    if (!tpcoords) {
+      return;
+    }
 
     auto &touch_port = input->touch_port;
     platf::touch_port_t abs_port {
@@ -557,7 +575,7 @@ namespace input {
       touch_port.env_width, touch_port.env_height
     };
 
-    platf::abs_mouse(platf_input, abs_port, tpcoords.first, tpcoords.second);
+    platf::abs_mouse(platf_input, abs_port, tpcoords->first, tpcoords->second);
   }
 
   void
@@ -693,28 +711,28 @@ namespace input {
     if (!release) {
       // Press any synthetic modifiers required for this key
       if (synthetic_modifiers & MODIFIER_SHIFT) {
-        platf::keyboard(platf_input, VKEY_SHIFT, false, flags);
+        platf::keyboard_update(platf_input, VKEY_SHIFT, false, flags);
       }
       if (synthetic_modifiers & MODIFIER_CTRL) {
-        platf::keyboard(platf_input, VKEY_CONTROL, false, flags);
+        platf::keyboard_update(platf_input, VKEY_CONTROL, false, flags);
       }
       if (synthetic_modifiers & MODIFIER_ALT) {
-        platf::keyboard(platf_input, VKEY_MENU, false, flags);
+        platf::keyboard_update(platf_input, VKEY_MENU, false, flags);
       }
     }
 
-    platf::keyboard(platf_input, map_keycode(key_code), release, flags);
+    platf::keyboard_update(platf_input, map_keycode(key_code), release, flags);
 
     if (!release) {
       // Raise any synthetic modifier keys we pressed
       if (synthetic_modifiers & MODIFIER_SHIFT) {
-        platf::keyboard(platf_input, VKEY_SHIFT, true, flags);
+        platf::keyboard_update(platf_input, VKEY_SHIFT, true, flags);
       }
       if (synthetic_modifiers & MODIFIER_CTRL) {
-        platf::keyboard(platf_input, VKEY_CONTROL, true, flags);
+        platf::keyboard_update(platf_input, VKEY_CONTROL, true, flags);
       }
       if (synthetic_modifiers & MODIFIER_ALT) {
-        platf::keyboard(platf_input, VKEY_MENU, true, flags);
+        platf::keyboard_update(platf_input, VKEY_MENU, true, flags);
       }
     }
   }
@@ -790,22 +808,54 @@ namespace input {
     update_shortcutFlags(&input->shortcutFlags, map_keycode(keyCode), release);
   }
 
+  /**
+   * @brief Called to pass a vertical scroll message the platform backend.
+   * @param input The input context pointer.
+   * @param packet The scroll packet.
+   */
   void
-  passthrough(PNV_SCROLL_PACKET packet) {
+  passthrough(std::shared_ptr<input_t> &input, PNV_SCROLL_PACKET packet) {
     if (!config::input.mouse) {
       return;
     }
 
-    platf::scroll(platf_input, util::endian::big(packet->scrollAmt1));
+    if (config::input.high_resolution_scrolling) {
+      platf::scroll(platf_input, util::endian::big(packet->scrollAmt1));
+    }
+    else {
+      input->accumulated_vscroll_delta += util::endian::big(packet->scrollAmt1);
+      auto full_ticks = input->accumulated_vscroll_delta / WHEEL_DELTA;
+      if (full_ticks) {
+        // Send any full ticks that have accumulated and store the rest
+        platf::scroll(platf_input, full_ticks * WHEEL_DELTA);
+        input->accumulated_vscroll_delta -= full_ticks * WHEEL_DELTA;
+      }
+    }
   }
 
+  /**
+   * @brief Called to pass a horizontal scroll message the platform backend.
+   * @param input The input context pointer.
+   * @param packet The scroll packet.
+   */
   void
-  passthrough(PSS_HSCROLL_PACKET packet) {
+  passthrough(std::shared_ptr<input_t> &input, PSS_HSCROLL_PACKET packet) {
     if (!config::input.mouse) {
       return;
     }
 
-    platf::hscroll(platf_input, util::endian::big(packet->scrollAmount));
+    if (config::input.high_resolution_scrolling) {
+      platf::hscroll(platf_input, util::endian::big(packet->scrollAmount));
+    }
+    else {
+      input->accumulated_hscroll_delta += util::endian::big(packet->scrollAmount);
+      auto full_ticks = input->accumulated_hscroll_delta / WHEEL_DELTA;
+      if (full_ticks) {
+        // Send any full ticks that have accumulated and store the rest
+        platf::hscroll(platf_input, full_ticks * WHEEL_DELTA);
+        input->accumulated_hscroll_delta -= full_ticks * WHEEL_DELTA;
+      }
+    }
   }
 
   void
@@ -875,6 +925,9 @@ namespace input {
       { from_clamped_netfloat(packet->x, 0.0f, 1.0f) * 65535.f,
         from_clamped_netfloat(packet->y, 0.0f, 1.0f) * 65535.f },
       { 65535.f, 65535.f });
+    if (!coords) {
+      return;
+    }
 
     auto &touch_port = input->touch_port;
     platf::touch_port_t abs_port {
@@ -883,8 +936,8 @@ namespace input {
     };
 
     // Renormalize the coordinates
-    coords.first /= abs_port.width;
-    coords.second /= abs_port.height;
+    coords->first /= abs_port.width;
+    coords->second /= abs_port.height;
 
     // Normalize rotation value to 0-359 degree range
     auto rotation = util::endian::little(packet->rotation);
@@ -903,14 +956,14 @@ namespace input {
       packet->eventType,
       rotation,
       util::endian::little(packet->pointerId),
-      coords.first,
-      coords.second,
+      coords->first,
+      coords->second,
       from_clamped_netfloat(packet->pressureOrDistance, 0.0f, 1.0f),
       contact_area.first,
       contact_area.second,
     };
 
-    platf::touch(input->client_context.get(), abs_port, touch);
+    platf::touch_update(input->client_context.get(), abs_port, touch);
   }
 
   /**
@@ -929,6 +982,9 @@ namespace input {
       { from_clamped_netfloat(packet->x, 0.0f, 1.0f) * 65535.f,
         from_clamped_netfloat(packet->y, 0.0f, 1.0f) * 65535.f },
       { 65535.f, 65535.f });
+    if (!coords) {
+      return;
+    }
 
     auto &touch_port = input->touch_port;
     platf::touch_port_t abs_port {
@@ -937,8 +993,8 @@ namespace input {
     };
 
     // Renormalize the coordinates
-    coords.first /= abs_port.width;
-    coords.second /= abs_port.height;
+    coords->first /= abs_port.width;
+    coords->second /= abs_port.height;
 
     // Normalize rotation value to 0-359 degree range
     auto rotation = util::endian::little(packet->rotation);
@@ -959,14 +1015,14 @@ namespace input {
       packet->penButtons,
       packet->tilt,
       rotation,
-      coords.first,
-      coords.second,
+      coords->first,
+      coords->second,
       from_clamped_netfloat(packet->pressureOrDistance, 0.0f, 1.0f),
       contact_area.first,
       contact_area.second,
     };
 
-    platf::pen(input->client_context.get(), abs_port, pen);
+    platf::pen_update(input->client_context.get(), abs_port, pen);
   }
 
   /**
@@ -1155,18 +1211,18 @@ namespace input {
             // Force the back button up
             gamepad.back_button_state = button_state_e::UP;
             state.buttonFlags &= ~platf::BACK;
-            platf::gamepad(platf_input, gamepad.id, state);
+            platf::gamepad_update(platf_input, gamepad.id, state);
 
             // Press Home button
             state.buttonFlags |= platf::HOME;
-            platf::gamepad(platf_input, gamepad.id, state);
+            platf::gamepad_update(platf_input, gamepad.id, state);
 
             // Sleep for a short time to allow the input to be detected
             std::this_thread::sleep_for(std::chrono::milliseconds(100));
 
             // Release Home button
             state.buttonFlags &= ~platf::HOME;
-            platf::gamepad(platf_input, gamepad.id, state);
+            platf::gamepad_update(platf_input, gamepad.id, state);
 
             gamepad.back_timeout_id = nullptr;
           };
@@ -1180,7 +1236,7 @@ namespace input {
       }
     }
 
-    platf::gamepad(platf_input, gamepad.id, gamepad_state);
+    platf::gamepad_update(platf_input, gamepad.id, gamepad_state);
 
     gamepad.gamepad_state = gamepad_state;
   }
@@ -1540,10 +1596,10 @@ namespace input {
         passthrough(input, (PNV_MOUSE_BUTTON_PACKET) payload);
         break;
       case SCROLL_MAGIC_GEN5:
-        passthrough((PNV_SCROLL_PACKET) payload);
+        passthrough(input, (PNV_SCROLL_PACKET) payload);
         break;
       case SS_HSCROLL_MAGIC:
-        passthrough((PSS_HSCROLL_PACKET) payload);
+        passthrough(input, (PSS_HSCROLL_PACKET) payload);
         break;
       case KEY_DOWN_EVENT_MAGIC:
       case KEY_UP_EVENT_MAGIC:
@@ -1609,7 +1665,7 @@ namespace input {
           // already released
           continue;
         }
-        platf::keyboard(platf_input, vk_from_kpid(kp.first) & 0x00FF, true, flags_from_kpid(kp.first));
+        platf::keyboard_update(platf_input, vk_from_kpid(kp.first) & 0x00FF, true, flags_from_kpid(kp.first));
         key_press[kp.first] = false;
       }
     });
@@ -1627,6 +1683,18 @@ namespace input {
     platf_input = platf::input();
 
     return std::make_unique<deinit_t>();
+  }
+
+  bool
+  probe_gamepads() {
+    auto input = static_cast<platf::input_t *>(platf_input.get());
+    const auto gamepads = platf::supported_gamepads(input);
+    for (auto &gamepad : gamepads) {
+      if (gamepad.is_enabled && gamepad.name != "auto") {
+        return false;
+      }
+    }
+    return true;
   }
 
   std::shared_ptr<input_t>

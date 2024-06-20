@@ -10,7 +10,9 @@
 #include <mutex>
 #include <string>
 
-#include "src/main.h"
+#include "src/config.h"
+#include "src/logging.h"
+#include "src/stat_trackers.h"
 #include "src/thread_safe.h"
 #include "src/utility.h"
 #include "src/video_colorspace.h"
@@ -18,6 +20,8 @@
 extern "C" {
 #include <moonlight-common-c/src/Limelight.h>
 }
+
+using namespace std::literals;
 
 struct sockaddr;
 struct AVFrame;
@@ -75,6 +79,12 @@ namespace platf {
   constexpr std::uint32_t PADDLE4 = 0x080000;
   constexpr std::uint32_t TOUCHPAD_BUTTON = 0x100000;
   constexpr std::uint32_t MISC_BUTTON = 0x200000;
+
+  struct supported_gamepad_t {
+    std::string name;
+    bool is_enabled;
+    std::string reason_disabled;
+  };
 
   enum class gamepad_feedback_e {
     rumble,
@@ -499,6 +509,22 @@ namespace platf {
     int env_width, env_height;
 
     int width, height;
+
+  protected:
+    // collect capture timing data (at loglevel debug)
+    stat_trackers::min_max_avg_tracker<double> sleep_overshoot_tracker;
+    void
+    log_sleep_overshoot(std::chrono::nanoseconds overshoot_ns) {
+      if (config::sunshine.min_log_level <= 1) {
+        // Print sleep overshoot stats to debug log every 20 seconds
+        auto print_info = [&](double min_overshoot, double max_overshoot, double avg_overshoot) {
+          auto f = stat_trackers::one_digit_after_decimal();
+          BOOST_LOG(debug) << "Sleep overshoot (min/max/avg): " << f % min_overshoot << "ms/" << f % max_overshoot << "ms/" << f % avg_overshoot << "ms";
+        };
+        // std::chrono::nanoseconds overshoot_ns = std::chrono::steady_clock::now() - next_frame;
+        sleep_overshoot_tracker.collect_and_callback_on_interval(overshoot_ns.count() / 1000000., print_info, 20s);
+      }
+    }
   };
 
   class mic_t {
@@ -543,13 +569,12 @@ namespace platf {
   audio_control();
 
   /**
-   * display_name --> The name of the monitor that SHOULD be displayed
-   *    If display_name is empty --> Use the first monitor that's compatible you can find
-   *    If you require to use this parameter in a separate thread --> make a copy of it.
-   *
-   * config --> Stream configuration
-   *
-   * Returns display_t based on hwdevice_type
+   * @brief Get the display_t instance for the given hwdevice_type.
+   * @param display_name The name of the monitor that SHOULD be displayed
+   * If display_name is empty, use the first monitor that's compatible you can find
+   * If you require to use this parameter in a separate thread, make a copy of it.
+   * @param config Stream configuration
+   * @returns display_t based on hwdevice_type
    */
   std::shared_ptr<display_t>
   display(mem_type_e hwdevice_type, const std::string &display_name, const video::config_t &config);
@@ -557,6 +582,13 @@ namespace platf {
   // A list of names of displays accepted as display_name with the mem_type_e
   std::vector<std::string>
   display_names(mem_type_e hwdevice_type);
+
+  /**
+   * @brief Returns if GPUs/drivers have changed since the last call to this function.
+   * @return `true` if a change has occurred or if it is unknown whether a change occurred.
+   */
+  bool
+  needs_encoder_reenumeration();
 
   boost::process::child
   run_command(bool elevated, bool interactive, const std::string &cmd, boost::filesystem::path &working_dir, const boost::process::environment &env, FILE *file, std::error_code &ec, boost::process::group *group);
@@ -608,8 +640,17 @@ namespace platf {
     audio,
     video
   };
+
+  /**
+   * @brief Enables QoS on the given socket for traffic to the specified destination.
+   * @param native_socket The native socket handle.
+   * @param address The destination address for traffic sent on this socket.
+   * @param port The destination port for traffic sent on this socket.
+   * @param data_type The type of traffic sent on this socket.
+   * @param dscp_tagging Specifies whether to enable DSCP tagging on outgoing traffic.
+   */
   std::unique_ptr<deinit_t>
-  enable_socket_qos(uintptr_t native_socket, boost::asio::ip::address &address, uint16_t port, qos_data_type_e data_type);
+  enable_socket_qos(uintptr_t native_socket, boost::asio::ip::address &address, uint16_t port, qos_data_type_e data_type, bool dscp_tagging);
 
   /**
    * @brief Open a url in the default web browser.
@@ -618,8 +659,36 @@ namespace platf {
   void
   open_url(const std::string &url);
 
+  /**
+   * @brief Attempt to gracefully terminate a process group.
+   * @param native_handle The native handle of the process group.
+   * @return true if termination was successfully requested.
+   */
+  bool
+  request_process_group_exit(std::uintptr_t native_handle);
+
+  /**
+   * @brief Checks if a process group still has running children.
+   * @param native_handle The native handle of the process group.
+   * @return true if processes are still running.
+   */
+  bool
+  process_group_running(std::uintptr_t native_handle);
+
   input_t
   input();
+  /**
+   * @brief Gets the current mouse position on screen
+   * @param input The input_t instance to use.
+   * @return util::point_t (x, y)
+   *
+   * EXAMPLES:
+   * ```cpp
+   * auto [x, y] = get_mouse_loc(input);
+   * ```
+   */
+  util::point_t
+  get_mouse_loc(input_t &input);
   void
   move_mouse(input_t &input, int deltaX, int deltaY);
   void
@@ -631,9 +700,9 @@ namespace platf {
   void
   hscroll(input_t &input, int distance);
   void
-  keyboard(input_t &input, uint16_t modcode, bool release, uint8_t flags);
+  keyboard_update(input_t &input, uint16_t modcode, bool release, uint8_t flags);
   void
-  gamepad(input_t &input, int nr, const gamepad_state_t &gamepad_state);
+  gamepad_update(input_t &input, int nr, const gamepad_state_t &gamepad_state);
   void
   unicode(input_t &input, char *utf8, int size);
 
@@ -654,7 +723,7 @@ namespace platf {
    * @param touch The touch event.
    */
   void
-  touch(client_input_t *input, const touch_port_t &touch_port, const touch_input_t &touch);
+  touch_update(client_input_t *input, const touch_port_t &touch_port, const touch_input_t &touch);
 
   /**
    * @brief Sends a pen event to the OS.
@@ -663,7 +732,7 @@ namespace platf {
    * @param pen The pen event.
    */
   void
-  pen(client_input_t *input, const touch_port_t &touch_port, const pen_input_t &pen);
+  pen_update(client_input_t *input, const touch_port_t &touch_port, const pen_input_t &pen);
 
   /**
    * @brief Sends a gamepad touch event to the OS.
@@ -720,6 +789,10 @@ namespace platf {
   [[nodiscard]] std::unique_ptr<deinit_t>
   init();
 
-  std::vector<std::string_view> &
-  supported_gamepads();
+  /**
+   * @brief Gets the supported gamepads for this platform backend.
+   * @return Vector of gamepad options and status.
+   */
+  std::vector<supported_gamepad_t> &
+  supported_gamepads(input_t *input);
 }  // namespace platf

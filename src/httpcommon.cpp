@@ -7,6 +7,7 @@
 #include "process.h"
 
 #include <filesystem>
+#include <utility>
 
 #include <boost/property_tree/json_parser.hpp>
 #include <boost/property_tree/ptree.hpp>
@@ -21,8 +22,9 @@
 
 #include "config.h"
 #include "crypto.h"
+#include "file_handler.h"
 #include "httpcommon.h"
-#include "main.h"
+#include "logging.h"
 #include "network.h"
 #include "nvhttp.h"
 #include "platform/common.h"
@@ -160,12 +162,12 @@ namespace http {
       return -1;
     }
 
-    if (write_file(pkey.c_str(), creds.pkey)) {
+    if (file_handler::write_file(pkey.c_str(), creds.pkey)) {
       BOOST_LOG(error) << "Couldn't open ["sv << config::nvhttp.pkey << ']';
       return -1;
     }
 
-    if (write_file(cert.c_str(), creds.x509)) {
+    if (file_handler::write_file(cert.c_str(), creds.x509)) {
       BOOST_LOG(error) << "Couldn't open ["sv << config::nvhttp.cert << ']';
       return -1;
     }
@@ -198,6 +200,14 @@ namespace http {
       BOOST_LOG(error) << "Couldn't create CURL instance";
       return false;
     }
+
+    std::string file_dir = file_handler::get_parent_directory(file);
+    if (!file_handler::make_directory(file_dir)) {
+      BOOST_LOG(error) << "Couldn't create directory ["sv << file_dir << ']';
+      curl_easy_cleanup(curl);
+      return false;
+    }
+
     FILE *fp = fopen(file.c_str(), "wb");
     if (!fp) {
       BOOST_LOG(error) << "Couldn't open ["sv << file << ']';

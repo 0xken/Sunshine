@@ -11,6 +11,7 @@ separate-locales: false
 finish-args:
   - --device=all  # access all devices
   - --env=PULSE_PROP_media.category=Manager  # allow sunshine to manage audio sinks
+  - --env=SUNSHINE_MIGRATE_CONFIG=1  # migrate config files to the new location
   - --filesystem=home  # need to save files in user's home directory
   - --share=ipc  # required for X11 shared memory extension
   - --share=network  # access network
@@ -33,24 +34,7 @@ build-options:
   prepend-ld-library-path: /usr/lib/sdk/vala/lib
 
 modules:
-  - name: boost
-    disabled: false
-    buildsystem: simple
-    build-commands:
-      - cd tools/build && bison -y -d -o src/engine/jamgram.cpp src/engine/jamgram.y
-      - ./bootstrap.sh --prefix=$FLATPAK_DEST --with-libraries=locale,log,program_options,system,thread
-      - ./b2 install variant=release link=shared runtime-link=shared cxxflags="$CXXFLAGS" linkflags="$LDFLAGS"
-        -j $FLATPAK_BUILDER_N_JOBS
-    sources:
-      - type: archive
-        url: http://archive.ubuntu.com/ubuntu/pool/main/b/boost1.74/boost1.74_1.74.0.orig.tar.xz
-        sha256: 2467be4af625b5ae4b3c93fc7af196a09eba39c11a7338cd9e8b356fa44d2f45
-      - type: archive
-        url: http://archive.ubuntu.com/ubuntu/pool/main/b/boost1.74/boost1.74_1.74.0-18.1ubuntu3.debian.tar.xz
-        sha256: d5660bdce3ea4ac66194b0c4bc6dc3b9d43d41cc16af8bc6024980d965e40ae2
-      - type: shell
-        commands:
-          - for n in $(cat patches/series); do if [[ $n != "#"* ]]; then patch -Np1 -i "patches/$n" -d .; fi; done
+  - "org.flatpak.Builder.BaseApp/xvfb.json"
 
   - name: avahi
     disabled: false
@@ -209,49 +193,22 @@ modules:
           name: gnome-common
           stable-only: true
 
-  - name: intel-mediasdk
-    disabled: false
+  - name: miniupnpc
     buildsystem: cmake
     config-opts:
-      - -DENABLE_OPENCL=ON
-      - -DENABLE_X11_DRI3=ON
-      - -DENABLE_WAYLAND=ON
-      - -DENABLE_ITT=OFF
-      - -DENABLE_TEXTLOG=OFF
-      - -DENABLE_STAT=OFF
-      - -DBUILD_ALL=OFF
-      - -DBUILD_RUNTIME=ON
-      - -DBUILD_SAMPLES=OFF
-      - -DBUILD_TESTS=OFF
-      - -DBUILD_TOOLS=OFF
-      - -DUSE_SYSTEM_GTEST=OFF
-      - -DMFX_ENABLE_KERNELS=ON
-    only-arches:
-      - x86_64
+      - -DUPNPC_BUILD_SAMPLE=OFF
+      - -DUPNPC_BUILD_SHARED=ON
+      - -DUPNPC_BUILD_TESTS=OFF
     sources:
       - type: archive
-        url: http://archive.ubuntu.com/ubuntu/pool/universe/i/intel-mediasdk/intel-mediasdk_22.3.0.orig.tar.gz
-        sha256: e1e74229f409e969b70c2b35b1955068de3d40db85ecc42bd6ff501468bc76d7
+        url: http://archive.ubuntu.com/ubuntu/pool/main/m/miniupnpc/miniupnpc_2.2.5.orig.tar.gz
+        sha256: 38acd5f4602f7cf8bcdc1ec30b2d58db2e9912e5d9f5350dd99b06bfdffb517c
       - type: archive
-        url: http://archive.ubuntu.com/ubuntu/pool/universe/i/intel-mediasdk/intel-mediasdk_22.3.0-1.debian.tar.xz
-        sha256: 024d98d2f63443d2765a90cfe997d104e7b897694889f199ca8fb4d9ffdcf1dc
+        url: http://archive.ubuntu.com/ubuntu/pool/main/m/miniupnpc/miniupnpc_2.2.5-1.debian.tar.xz
+        sha256: f6ab181f3c999ae0630508ea1e6c76ae302262414061acaab12bf8763431ffd1
       - type: shell
         commands:
           - for n in $(cat patches/series); do if [[ $n != "#"* ]]; then patch -Np1 -i "patches/$n" -d .; fi; done
-    modules:
-      - name: libdrm
-        disabled: false
-        buildsystem: meson
-        sources:
-          - type: archive
-            url: http://archive.ubuntu.com/ubuntu/pool/main/libd/libdrm/libdrm_2.4.110.orig.tar.xz
-            sha256: eecee4c4b47ed6d6ce1a9be3d6d92102548ea35e442282216d47d05293cf9737
-          - type: archive
-            url: http://archive.ubuntu.com/ubuntu/pool/main/libd/libdrm/libdrm_2.4.110-1ubuntu1.debian.tar.xz
-            sha256: 464b9553861f39beddfaee6b8924734b02a0febfae3968e4ca1360f2972bba8b
-          - type: shell
-            commands:
-              - for n in $(cat patches/series); do if [[ $n != "#"* ]]; then patch -Np1 -i "patches/$n" -d .; fi; done
 
   - name: numactl
     buildsystem: autotools
@@ -308,14 +265,16 @@ modules:
       append-path: /usr/lib/sdk/node18/bin
       build-args:
         - --share=network
-      cxxflags: -I${C_INCLUDE_PATH}/libevdev-1.0
+      test-args:
+        - --share=network
       env:
+        BUILD_VERSION: "@BUILD_VERSION@"
+        BRANCH: "@GITHUB_BRANCH@"
+        COMMIT: "@GITHUB_COMMIT@"
         npm_config_nodedir: /usr/lib/sdk/node18
         NPM_CONFIG_LOGLEVEL: info
-    build-commands:
-      # Install npm dependencies
-      - cd ${FLATPAK_BUILDER_BUILDDIR} && npm install
     config-opts:
+      - -DBUILD_WERROR=ON
       - -DCMAKE_BUILD_TYPE=Release
       - -DCMAKE_INSTALL_PREFIX=/app
       - -DCMAKE_CUDA_COMPILER=/app/cuda/bin/nvcc
@@ -326,6 +285,7 @@ modules:
       - -DSUNSHINE_ENABLE_DRM=ON
       - -DSUNSHINE_ENABLE_CUDA=ON
       - -DSUNSHINE_BUILD_FLATPAK=ON
+      - -DTESTS_ENABLE_PYTHON_TESTS=OFF
     sources:
       - type: git
         url: "@GITHUB_CLONE_URL@"
@@ -343,3 +303,7 @@ modules:
         's%/app/bin/sunshine%flatpak run dev.lizardbyte.sunshine\nExecStop=flatpak kill dev.lizardbyte.sunshine%g'
         /app/share/sunshine/systemd/user/sunshine.service
       - install -D $FLATPAK_BUILDER_BUILDDIR/packaging/linux/flatpak/scripts/* /app/bin
+    run-tests: true
+    test-rule: ""  # empty to disable
+    test-commands:
+      - xvfb-run tests/test_sunshine --gtest_color=yes

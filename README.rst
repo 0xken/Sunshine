@@ -17,69 +17,48 @@ System Requirements
 
 **Minimum Requirements**
 
-+------------+------------------------------------------------------------+
-| GPU        | AMD: VCE 1.0 or higher, see `obs-amd hardware support`_    |
-|            +------------------------------------------------------------+
-|            | Intel: VAAPI-compatible, see: `VAAPI hardware support`_    |
-|            +------------------------------------------------------------+
-|            | Nvidia: NVENC enabled cards, see `nvenc support matrix`_   |
-+------------+------------------------------------------------------------+
-| CPU        | AMD: Ryzen 3 or higher                                     |
-|            +------------------------------------------------------------+
-|            | Intel: Core i3 or higher                                   |
-+------------+------------------------------------------------------------+
-| RAM        | 4GB or more                                                |
-+------------+------------------------------------------------------------+
-| OS         | Windows: 10+ (Windows Server not supported)                |
-|            +------------------------------------------------------------+
-|            | macOS: 11.7+                                               |
-|            +------------------------------------------------------------+
-|            | Linux/Debian: 11 (bullseye)                                |
-|            +------------------------------------------------------------+
-|            | Linux/Fedora: 36+                                          |
-|            +------------------------------------------------------------+
-|            | Linux/Ubuntu: 20.04+ (focal)                               |
-+------------+------------------------------------------------------------+
-| Network    | Host: 5GHz, 802.11ac                                       |
-|            +------------------------------------------------------------+
-|            | Client: 5GHz, 802.11ac                                     |
-+------------+------------------------------------------------------------+
+.. csv-table::
+   :widths: 15, 60
+
+   "GPU", "AMD: VCE 1.0 or higher, see: `obs-amd hardware support <https://github.com/obsproject/obs-amd-encoder/wiki/Hardware-Support>`_"
+   "", "Intel: VAAPI-compatible, see: `VAAPI hardware support <https://www.intel.com/content/www/us/en/developer/articles/technical/linuxmedia-vaapi.html>`_"
+   "", "Nvidia: NVENC enabled cards, see: `nvenc support matrix <https://developer.nvidia.com/video-encode-and-decode-gpu-support-matrix-new>`_"
+   "CPU", "AMD: Ryzen 3 or higher"
+   "", "Intel: Core i3 or higher"
+   "RAM", "4GB or more"
+   "OS", "Windows: 10+ (Windows Server does not support virtual gamepads)"
+   "", "macOS: 12+"
+   "", "Linux/Debian: 11 (bullseye)"
+   "", "Linux/Fedora: 39+"
+   "", "Linux/Ubuntu: 22.04+ (jammy)"
+   "Network", "Host: 5GHz, 802.11ac"
+   "", "Client: 5GHz, 802.11ac"
 
 **4k Suggestions**
 
-+------------+------------------------------------------------------------+
-| GPU        | AMD: Video Coding Engine 3.1 or higher                     |
-|            +------------------------------------------------------------+
-|            | Intel: HD Graphics 510 or higher                           |
-|            +------------------------------------------------------------+
-|            | Nvidia: GeForce GTX 1080 or higher                         |
-+------------+------------------------------------------------------------+
-| CPU        | AMD: Ryzen 5 or higher                                     |
-|            +------------------------------------------------------------+
-|            | Intel: Core i5 or higher                                   |
-+------------+------------------------------------------------------------+
-| Network    | Host: CAT5e ethernet or better                             |
-|            +------------------------------------------------------------+
-|            | Client: CAT5e ethernet or better                           |
-+------------+------------------------------------------------------------+
+.. csv-table::
+   :widths: 15, 60
+
+   "GPU", "AMD: Video Coding Engine 3.1 or higher"
+   "", "Intel: HD Graphics 510 or higher"
+   "", "Nvidia: GeForce GTX 1080 or higher"
+   "CPU", "AMD: Ryzen 5 or higher"
+   "", "Intel: Core i5 or higher"
+   "Network", "Host: CAT5e ethernet or better"
+   "", "Client: CAT5e ethernet or better"
 
 **HDR Suggestions**
 
-+------------+------------------------------------------------------------+
-| GPU        | AMD: Video Coding Engine 3.4 or higher                     |
-|            +------------------------------------------------------------+
-|            | Intel: UHD Graphics 730 or higher                          |
-|            +------------------------------------------------------------+
-|            | Nvidia: Pascal-based GPU (GTX 10-series) or higher         |
-+------------+------------------------------------------------------------+
-| CPU        | AMD: todo                                                  |
-|            +------------------------------------------------------------+
-|            | Intel: todo                                                |
-+------------+------------------------------------------------------------+
-| Network    | Host: CAT5e ethernet or better                             |
-|            +------------------------------------------------------------+
-|            | Client: CAT5e ethernet or better                           |
-+------------+------------------------------------------------------------+
+.. csv-table::
+   :widths: 15, 60
+
+   "GPU", "AMD: Video Coding Engine 3.4 or higher"
+   "", "Intel: UHD Graphics 730 or higher"
+   "", "Nvidia: Pascal-based GPU (GTX 10-series) or higher"
+   "CPU", "AMD: todo"
+   "", "Intel: todo"
+   "Network", "Host: CAT5e ethernet or better"
+   "", "Client: CAT5e ethernet or better"
 
 Integrations
 ------------
@@ -88,13 +67,17 @@ Integrations
    :alt: GitHub Workflow Status (CI)
    :target: https://github.com/LizardByte/Sunshine/actions/workflows/CI.yml?query=branch%3Amaster
 
-.. image:: https://img.shields.io/github/actions/workflow/status/lizardbyte/sunshine/localize.yml.svg?branch=nightly&label=localize%20build&logo=github&style=for-the-badge
+.. image:: https://img.shields.io/github/actions/workflow/status/lizardbyte/sunshine/localize.yml.svg?branch=master&label=localize%20build&logo=github&style=for-the-badge
    :alt: GitHub Workflow Status (localize)
-   :target: https://github.com/LizardByte/Sunshine/actions/workflows/localize.yml?query=branch%3Anightly
+   :target: https://github.com/LizardByte/Sunshine/actions/workflows/localize.yml?query=branch%3Amaster
 
 .. image:: https://img.shields.io/readthedocs/sunshinestream.svg?label=Docs&style=for-the-badge&logo=readthedocs
    :alt: Read the Docs
    :target: http://sunshinestream.readthedocs.io/
+
+.. image:: https://img.shields.io/codecov/c/gh/LizardByte/Sunshine?token=SMGXQ5NVMJ&style=for-the-badge&logo=codecov&label=codecov
+   :alt: Codecov
+   :target: https://codecov.io/gh/LizardByte/Sunshine
 
 Support
 -------
@@ -113,7 +96,11 @@ Downloads
    :alt: Docker
    :target: https://hub.docker.com/r/lizardbyte/sunshine
 
-.. image:: https://img.shields.io/badge/dynamic/xml.svg?color=orange&label=Winget&style=for-the-badge&prefix=v&query=%2F%2Ftr%5B%40id%3D%27winget%27%5D%2Ftd%5B3%5D%2Fspan%2Fa&url=https%3A%2F%2Frepology.org%2Fproject%2Fsunshine%2Fversions&logo=microsoft
+.. image:: https://img.shields.io/badge/dynamic/json?url=https%3A%2F%2Fraw.githubusercontent.com%2Fipitio%2Fghcr-pulls%2Fmaster%2Findex.json&query=%24%5B%3F(%40.owner%3D%3D%22LizardByte%22%20%26%26%20%40.repo%3D%3D%22Sunshine%22%20%26%26%20%40.image%3D%3D%22sunshine%22)%5D.pulls&label=ghcr%20pulls&style=for-the-badge&logo=github
+   :alt: GHCR
+   :target: https://github.com/LizardByte/Sunshine/pkgs/container/sunshine
+
+.. image:: https://img.shields.io/badge/dynamic/json.svg?color=orange&label=Winget&style=for-the-badge&prefix=v&query=$[-1:].name&url=https%3A%2F%2Fapi.github.com%2Frepos%2Fmicrosoft%2Fwinget-pkgs%2Fcontents%2Fmanifests%2Fl%2FLizardByte%2FSunshine&logo=microsoft
    :alt: Winget Version
    :target: https://github.com/microsoft/winget-pkgs/tree/master/manifests/l/LizardByte/Sunshine
 
@@ -122,7 +109,3 @@ Stats
 .. image:: https://img.shields.io/github/stars/lizardbyte/sunshine.svg?logo=github&style=for-the-badge
    :alt: GitHub stars
    :target: https://github.com/LizardByte/Sunshine
-
-.. _nvenc support matrix: https://developer.nvidia.com/video-encode-and-decode-gpu-support-matrix-new
-.. _obs-amd hardware support: https://github.com/obsproject/obs-amd-encoder/wiki/Hardware-Support
-.. _VAAPI hardware support: https://www.intel.com/content/www/us/en/developer/articles/technical/linuxmedia-vaapi.html
